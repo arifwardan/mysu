@@ -1,13 +1,65 @@
+// import "dotenv/config";
+// import { Client, Collection, GatewayIntentBits, Message } from "discord.js";
+// import { loadCommands } from "./core/commandLoader";
+// import { loadEvents } from "./core/eventLoader";
+// import express from "express";
+
+// const app = express();
+// app.use(express.json());
+
+// export interface Command {
+//   name: string;
+//   execute: (message: Message, args: string[]) => Promise<void>;
+// }
+
+// const client = new Client({
+//   intents: [
+//     GatewayIntentBits.Guilds,
+//     GatewayIntentBits.GuildMessages,
+//     GatewayIntentBits.GuildMembers,
+//     GatewayIntentBits.MessageContent,
+//     GatewayIntentBits.GuildVoiceStates,
+//   ],
+// });
+
+// (client as any).commands = new Collection();
+
+// async function bootstrap() {
+//   await loadCommands(client);
+//   await loadEvents(client);
+
+//   await client.login(process.env.TOKEN);
+// }
+
+// bootstrap();
+
 import "dotenv/config";
-import { Client, Collection, GatewayIntentBits, Message } from "discord.js";
-import fs from "fs";
-import path from "path";
-import onGuildMemberAdd from "./events/guildMemberAdd";
+
+import express from "express";
+
+import {
+  Client,
+  Collection,
+  GatewayIntentBits,
+  Message
+} from "discord.js";
+
+import { loadCommands } from "./core/commandLoader";
+import { loadEvents } from "./core/eventLoader";
+
+import robloxRoutes from "./routes/roblox";
+import { addMessage } from "./services/robloxBridge";
 
 export interface Command {
   name: string;
   execute: (message: Message, args: string[]) => Promise<void>;
 }
+
+const app = express();
+
+app.use(express.json());
+
+app.use("/", robloxRoutes);
 
 const client = new Client({
   intents: [
@@ -19,68 +71,28 @@ const client = new Client({
   ],
 });
 
-(client as any).commands = new Collection<string, Command>();
+(client as any).commands = new Collection();
 
-const commandsPath = path.join(__dirname, "commands");
+const MC_CHAT_BOT_ID = process.env.MC_CHAT_BOT_ID!;
 
-function loadCommands(dir: string) {
-  const entries = fs.readdirSync(dir, { withFileTypes: true });
+client.on("messageCreate", (msg) => {
+  if (msg.channelId !== MC_CHAT_BOT_ID || msg.author.bot) return;
 
-  for (const entry of entries) {
-    const fullPath = path.join(dir, entry.name);
+  addMessage(
+    msg.author.username,
+    msg.content
+  );
+});
 
-    if (entry.isDirectory()) {
-      loadCommands(fullPath);
-      continue;
-    }
+async function bootstrap() {
+  await loadCommands(client);
+  await loadEvents(client);
 
-    if (!entry.name.endsWith(".ts") && !entry.name.endsWith(".js")) continue;
+  app.listen(3000, () => {
+    console.log("Express server running on port 3000");
+  });
 
-    const command = require(fullPath).default;
-
-    if (!command?.name || !command?.execute) continue;
-
-    (client as any).commands.set(command.name, command);
-
-    console.log(`Loaded command: ${command.name}`);
-  }
+  await client.login(process.env.TOKEN);
 }
 
-client.once("clientReady", () => {
-  console.log(`MYSU online sebagai ${client.user?.tag}`);
-});
-
-client.on("guildMemberAdd", async (member) => {
-  await onGuildMemberAdd(member);
-});
-
-client.on("messageCreate", async (message) => {
-  if (message.author.bot) return;
-
-  const prefix = process.env.PREFIX || "my!";
-
-  if (!message.content.startsWith(prefix)) return;
-
-  const args = message.content.slice(prefix.length).trim().split(/\s+/);
-  const commandName = args.shift()?.toLowerCase();
-
-  if (!commandName) return;
-
-  const command = (client as any).commands.get(commandName);
-
-  if (!command) {
-    console.log(`Command tidak ditemukan: ${commandName}`);
-    return;
-  }
-
-  try {
-    await command.execute(message, args);
-  } catch (err) {
-    console.error(err);
-    await message.reply("Terjadi error saat menjalankan command.");
-  }
-});
-
-loadCommands(commandsPath);
-
-client.login(process.env.TOKEN);
+bootstrap();
