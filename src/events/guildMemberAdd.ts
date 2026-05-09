@@ -1,22 +1,22 @@
 import { EmbedBuilder, GuildMember, TextChannel } from "discord.js";
+import { getGuildConfig } from "../services/guildConfig";
 
 export default async function onGuildMemberAdd(member: GuildMember) {
-  const channelId = process.env.WELCOME_CHANNEL_ID;
+  const config = getGuildConfig(member.guild.id);
 
-  if (!channelId) return;
+  if (!config.welcomeChannelId) return;
 
-  const channel = member.guild.channels.cache.get(channelId);
+  const channel = member.guild.channels.cache.get(config.welcomeChannelId);
 
   if (!channel || !(channel instanceof TextChannel)) return;
 
-  const rulesChannelId = process.env.RULES_CHANNEL_ID;
-  const rulesChannel = rulesChannelId
-    ? member.guild.channels.cache.get(rulesChannelId)
+  const rulesChannel = config.rulesChannelId
+    ? member.guild.channels.cache.get(config.rulesChannelId)
     : null;
 
   const mysticsBanner =
     process.env.MYSTICS_BANNER_URL ||
-    "https://your-image-url-here.png";
+    "https://cdn.jsdelivr.net/gh/arifwardan/mysu/assets/banner.jpg";
 
   const embed = new EmbedBuilder()
     .setColor("#B9A7FF")
@@ -29,7 +29,7 @@ export default async function onGuildMemberAdd(member: GuildMember) {
         rulesChannel
           ? `Please read the rules in ${rulesChannel}.`
           : "Please take a moment to read the server rules.",
-      ].join("\n")
+      ].join("\n"),
     )
     .setThumbnail(member.user.displayAvatarURL({ size: 256 }))
     .setImage(mysticsBanner)
@@ -37,6 +37,10 @@ export default async function onGuildMemberAdd(member: GuildMember) {
       text: `Member #${member.guild.memberCount}`,
     })
     .setTimestamp();
+
+  if (config.bannerUrl) {
+    embed.setImage(config.bannerUrl);
+  }
 
   await channel.send({ embeds: [embed] });
 }

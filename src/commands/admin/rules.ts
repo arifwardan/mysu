@@ -1,17 +1,20 @@
 import { EmbedBuilder, TextChannel } from "discord.js";
+import { getGuildConfig } from "../../services/guildConfig";
 
 export default {
   name: "rules",
 
   async execute(message: any) {
-    const channelId = process.env.RULES_CHANNEL_ID;
+    const config = getGuildConfig(message.guild.id);
 
-    if (!channelId) {
-      await message.reply("RULES_CHANNEL_ID belum diatur di .env");
+    if (!config.rulesChannelId) {
+      await message.reply(
+        "Rules channel belum diatur. Gunakan `my!setup rules #channel`.",
+      );
       return;
     }
 
-    const channel = message.guild?.channels.cache.get(channelId);
+    const channel = message.guild.channels.cache.get(config.rulesChannelId);
 
     if (!channel || !(channel instanceof TextChannel)) {
       await message.reply("Rules channel tidak ditemukan.");
@@ -53,12 +56,16 @@ export default {
           "Moderator decisions should be respected.",
           "",
           "**10. Use common sense**",
-          "Help keep the community friendly and enjoyable for everyone."
-        ].join("\n")
+          "Help keep the community friendly and enjoyable for everyone.",
+        ].join("\n"),
       )
       .setFooter({
         text: "By staying in Mystics United, you agree to follow these rules.",
       });
+
+    if (config.bannerUrl) {
+      embed.setImage(config.bannerUrl);
+    }
 
     await channel.send({ embeds: [embed] });
     await message.reply("Rules berhasil dikirim.");
